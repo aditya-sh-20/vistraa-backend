@@ -1,0 +1,4 @@
+Asharma@2006
+
+jdbc:postgresql://db.lhzdcdbmakhdtieylycn.supabase.co:5432/postgres
+
