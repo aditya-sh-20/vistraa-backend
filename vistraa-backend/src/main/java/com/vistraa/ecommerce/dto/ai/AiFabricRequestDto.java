@@ -1,15 +1,24 @@
 package com.vistraa.ecommerce.dto.ai;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class AiFabricRequestDto {
 
     @JsonProperty("text_prompt")
     private String textPrompt;
+
+    public AiFabricRequestDto() {
+    }
+
+    public AiFabricRequestDto(String textPrompt) {
+        this.textPrompt = textPrompt;
+    }
+
+    public String getTextPrompt() {
+        return textPrompt;
+    }
+
+    public void setTextPrompt(String textPrompt) {
+        this.textPrompt = textPrompt;
+    }
 }

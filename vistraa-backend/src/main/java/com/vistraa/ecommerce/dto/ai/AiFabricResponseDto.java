@@ -1,42 +1,65 @@
 package com.vistraa.ecommerce.dto.ai;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.Data;
+import java.util.List;
 
-import java.util.Map;
-
-@Data
 public class AiFabricResponseDto {
 
-    private SentimentData sentiment;
-    private PatternData pattern;
+    @JsonProperty("sentiment_label")
+    private String sentimentLabel;
 
-    @Data
-    public static class SentimentData {
-        private String text;
-        private String label;
-        private Double score;
+    @JsonProperty("sentiment_score")
+    private double sentimentScore;
 
-        @JsonProperty("positive_score")
-        private Double positiveScore;
+    @JsonProperty("generated_prompt")
+    private String generatedPrompt;
 
-        @JsonProperty("negative_score")
-        private Double negativeScore;
+    @JsonProperty("pattern_url")
+    private String patternUrl;
 
-        private Double intensity;
+    @JsonProperty("color_palette")
+    private List<String> colorPalette;
+
+    public AiFabricResponseDto() {
     }
 
-    @Data
-    public static class PatternData {
-        @JsonProperty("file_path")
-        private String filePath;
+    public String getSentimentLabel() {
+        return sentimentLabel;
+    }
 
-        @JsonProperty("base64_png")
-        private String base64Png;
+    public void setSentimentLabel(String sentimentLabel) {
+        this.sentimentLabel = sentimentLabel;
+    }
 
-        private String resolution;
+    public double getSentimentScore() {
+        return sentimentScore;
+    }
 
-        @JsonProperty("palette_mapped")
-        private Map<String, Object> paletteMapped;
+    public void setSentimentScore(double sentimentScore) {
+        this.sentimentScore = sentimentScore;
+    }
+
+    public String getGeneratedPrompt() {
+        return generatedPrompt;
+    }
+
+    public void setGeneratedPrompt(String generatedPrompt) {
+        this.generatedPrompt = generatedPrompt;
+    }
+
+    public String getPatternUrl() {
+        return patternUrl;
+    }
+
+    public void setPatternUrl(String patternUrl) {
+        this.patternUrl = patternUrl;
+    }
+
+    public List<String> getColorPalette() {
+        return colorPalette;
+    }
+
+    public void setColorPalette(List<String> colorPalette) {
+        this.colorPalette = colorPalette;
     }
 }

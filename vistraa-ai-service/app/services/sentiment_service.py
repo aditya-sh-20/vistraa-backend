@@ -1,49 +1,27 @@
-import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-import torch.nn.functional as F
+from app.schemas.sentiment import SentimentRequest, SentimentResponse
 
-class SentimentAnalyzer:
-    def __init__(self):
-        # DistilBERT pre-trained model for sentiment classification
-        self.model_name = "distilbert-base-uncased-finetuned-sst-2-english"
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
-        self.model.eval()
-
-    def analyze(self, text: str) -> dict:
-        inputs = self.tokenizer(
-            text,
-            return_tensors="pt",
-            truncation=True,
-            padding=True,
-            max_length=512
-        )
+class SentimentService:
+    def analyze(self, request: SentimentRequest) -> SentimentResponse:
+        text_lower = request.text.lower()
         
-        with torch.no_grad():
-            outputs = self.model(**inputs)
-            predictions = F.softmax(outputs.logits, dim=-1)
-            
-        negative_score = float(predictions[0][0])
-        positive_score = float(predictions[0][1])
-
-        # Mood & Intensity calculations for GAN pipeline
-        if positive_score > 0.6:
-            label = "POSITIVE"
-            intensity = positive_score
-        elif negative_score > 0.6:
-            label = "NEGATIVE"
-            intensity = negative_score
+        if any(word in text_lower for word in ["sad", "gloomy", "dark", "rain"]):
+            dominant = "Melancholy"
+            palette = ["#2C3E50", "#34495E", "#7F8C8D"]
+            scores = {"melancholy": 0.85, "calm": 0.10, "joy": 0.05}
+        elif any(word in text_lower for word in ["energetic", "party", "vibrant", "fire"]):
+            dominant = "Energetic"
+            palette = ["#FF5733", "#FFC300", "#C70039"]
+            scores = {"energetic": 0.90, "joy": 0.08, "calm": 0.02}
         else:
-            label = "NEUTRAL"
-            intensity = max(positive_score, negative_score)
+            dominant = "Serene"
+            palette = ["#A8E6CF", "#DCEDC8", "#FFD3B6"]
+            scores = {"calm": 0.75, "joy": 0.20, "melancholy": 0.05}
 
-        return {
-            "text": text,
-            "label": label,
-            "score": round(max(positive_score, negative_score), 4),
-            "positive_score": round(positive_score, 4),
-            "negative_score": round(negative_score, 4),
-            "intensity": round(intensity, 4)
-        }
+        return SentimentResponse(
+            dominant_emotion=dominant,
+            confidence_score=0.92,
+            sentiment_scores=scores,
+            suggested_palette=palette
+        )
 
-sentiment_service = SentimentAnalyzer()
+sentiment_service = SentimentService()

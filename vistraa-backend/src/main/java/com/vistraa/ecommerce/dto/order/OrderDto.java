@@ -1,60 +1,69 @@
 package com.vistraa.ecommerce.dto.order;
 
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 
 public class OrderDto {
 
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class ItemRequest {
-        @NotNull(message = "Product ID is required")
-        private Long productId;
-
-        @NotNull(message = "Quantity is required")
-        private Integer quantity;
-    }
-
-    @Getter
-    @Setter
+    @Data
+    @Builder
     @NoArgsConstructor
     @AllArgsConstructor
     public static class CreateRequest {
-        @NotEmpty(message = "Order must contain at least one item")
+        private String userEmail;
+        private Long userId;
+        private String shippingAddress;
+        private BigDecimal totalAmount;
         private List<ItemRequest> items;
     }
 
-    @Getter
-    @Setter
+    @Data
+    @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    @Builder
-    public static class ItemResponse {
-        private Long id;
-        private Long productId;
+    public static class ItemRequest {
+        private String productId;
         private String productName;
         private Integer quantity;
         private BigDecimal price;
+        private String customSentiment;
+        private String palette;
+        private String printPatternUrl;
     }
 
-    @Getter
-    @Setter
+    @Data
+    @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    public static class ItemResponse {
+        private Long id;
+        private String productId;
+        private String productName;
+        private Integer quantity;
+        private BigDecimal price;
+        private String customSentiment;
+        private String palette;
+        private String printPatternUrl;
+    }
+
+    @Data
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class Response {
         private Long id;
+        private String orderId;
+        private String transactionOrderId;
         private String userEmail;
-        private BigDecimal totalAmount;
         private String status;
-        private LocalDateTime createdAt;
-        private List<ItemResponse> items;
+        private BigDecimal totalAmount;
+        private String shippingAddress;
+        private List<ItemRequest> items;
+        private List<ItemResponse> itemResponses;
     }
 }

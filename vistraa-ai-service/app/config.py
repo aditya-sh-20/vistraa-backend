@@ -1,10 +1,10 @@
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "Vistraa AI Microservice"
+    PROJECT_NAME: str = "Vistraa AI Sentiment Engine"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
-    
+
     class Config:
         case_sensitive = True
 

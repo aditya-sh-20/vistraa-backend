@@ -1,25 +1,25 @@
 package com.vistraa.ecommerce.controller;
 
+import com.vistraa.ecommerce.dto.ai.AiFabricRequestDto;
+import com.vistraa.ecommerce.dto.ai.AiFabricResponseDto;
+import com.vistraa.ecommerce.service.AiServiceClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.Map;
-
 @RestController
-@RequestMapping("/fabric")
+@RequestMapping("/api/v1/fabric")
+@CrossOrigin(origins = "*")
 public class AiFabricController {
 
+    private final AiServiceClient aiServiceClient;
+
+    public AiFabricController(AiServiceClient aiServiceClient) {
+        this.aiServiceClient = aiServiceClient;
+    }
+
     @PostMapping("/generate")
-    public ResponseEntity<Map<String, Object>> generateFabricPattern(@RequestBody Map<String, Object> request) {
-        String textPrompt = (String) request.get("text_prompt");
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "SUCCESS");
-        response.put("prompt", textPrompt);
-        response.put("pattern_url", "http://localhost:8000/static/patterns/pattern_generated.png");
-        response.put("sentiment", "POSITIVE");
-
+    public ResponseEntity<AiFabricResponseDto> generateFabric(@RequestBody AiFabricRequestDto request) {
+        AiFabricResponseDto response = aiServiceClient.generateFabricPattern(request);
         return ResponseEntity.ok(response);
     }
 }

@@ -1,40 +1,55 @@
 package com.vistraa.ecommerce.controller;
 
+import com.vistraa.ecommerce.dto.VendorFulfillmentPayload;
 import com.vistraa.ecommerce.dto.order.OrderDto;
 import com.vistraa.ecommerce.service.OrderService;
-import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
+import com.vistraa.ecommerce.service.VendorWebhookService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/orders")
+@CrossOrigin(origins = "*")
 public class OrderController {
 
-    private final OrderService orderService;
+    @Autowired
+    private OrderService orderService;
 
-    public OrderController(OrderService orderService) {
-        this.orderService = orderService;
-    }
+    @Autowired
+    private VendorWebhookService vendorWebhookService;
 
-    @PostMapping
-    public ResponseEntity<OrderDto.Response> createOrder(@Valid @RequestBody OrderDto.CreateRequest request,
-            Authentication authentication) {
-        OrderDto.Response response = orderService.createOrder(request, authentication.getName());
-        return new ResponseEntity<>(response, HttpStatus.CREATED);
-    }
+    @PostMapping("/checkout")
+    public ResponseEntity<OrderDto.Response> processCheckout(@RequestBody OrderDto.CreateRequest request) {
+        OrderDto.Response response = orderService.createOrder(request);
 
-    @GetMapping
-    public ResponseEntity<List<OrderDto.Response>> getUserOrders(Authentication authentication) {
-        return ResponseEntity.ok(orderService.getOrdersByUser(authentication.getName()));
-    }
+        List<VendorFulfillmentPayload.FulfillmentItem> vendorItems = request.getItems().stream()
+                .map(item -> VendorFulfillmentPayload.FulfillmentItem.builder()
+                        .productName(item.getProductName())
+                        .quantity(item.getQuantity())
+                        .price(item.getPrice())
+                        .garmentSpec(VendorFulfillmentPayload.GarmentSpec.builder()
+                                .customSentiment(item.getCustomSentiment())
+                                .palette(item.getPalette())
+                                .printPatternUrl(item.getPrintPatternUrl())
+                                .build())
+                        .build())
+                .collect(Collectors.toList());
 
-    @GetMapping("/{id}")
-    public ResponseEntity<OrderDto.Response> getOrderById(@PathVariable Long id,
-            Authentication authentication) {
-        return ResponseEntity.ok(orderService.getOrderById(id, authentication.getName()));
+        VendorFulfillmentPayload fulfillmentPayload = VendorFulfillmentPayload.builder()
+                .merchantBrand("Vistraa Apparel Co.")
+                .fulfillmentOrderId(response.getTransactionOrderId())
+                .customerEmail(response.getUserEmail())
+                .shippingAddress(response.getShippingAddress())
+                .orderTotal(response.getTotalAmount())
+                .items(vendorItems)
+                .build();
+
+        vendorWebhookService.dispatchBlindFulfillment(fulfillmentPayload);
+
+        return ResponseEntity.ok(response);
     }
 }

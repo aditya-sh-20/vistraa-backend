@@ -1,12 +1,12 @@
 from pydantic import BaseModel, Field
+from typing import Dict, List, Optional
 
 class SentimentRequest(BaseModel):
-    text: str = Field(..., min_length=2, max_length=1000, example="I feel energetic, vibrant, and full of joy today!")
+    text: str = Field(..., example="I want a vibrant and energetic outfit for a beach party.")
+    user_id: Optional[int] = Field(None, example=1)
 
 class SentimentResponse(BaseModel):
-    text: str
-    label: str
-    score: float
-    positive_score: float
-    negative_score: float
-    intensity: float
+    dominant_emotion: str
+    confidence_score: float
+    sentiment_scores: Dict[str, float]
+    suggested_palette: List[str]

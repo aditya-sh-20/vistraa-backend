@@ -1,116 +1,130 @@
 package com.vistraa.ecommerce.service;
 
+import com.vistraa.ecommerce.dto.VendorWebhookPayload;
 import com.vistraa.ecommerce.dto.order.OrderDto;
-import com.vistraa.ecommerce.model.*;
+import com.vistraa.ecommerce.model.Order;
+import com.vistraa.ecommerce.model.OrderItem;
+import com.vistraa.ecommerce.model.User;
 import com.vistraa.ecommerce.repository.OrderRepository;
-import com.vistraa.ecommerce.repository.ProductRepository;
 import com.vistraa.ecommerce.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
 public class OrderService {
 
-    private final OrderRepository orderRepository;
-    private final ProductRepository productRepository;
-    private final UserRepository userRepository;
+        @Autowired
+        private OrderRepository orderRepository;
 
-    public OrderService(OrderRepository orderRepository,
-            ProductRepository productRepository,
-            UserRepository userRepository) {
-        this.orderRepository = orderRepository;
-        this.productRepository = productRepository;
-        this.userRepository = userRepository;
-    }
+        @Autowired
+        private UserRepository userRepository;
 
-    @Transactional
-    public OrderDto.Response createOrder(OrderDto.CreateRequest request, String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        @Autowired
+        private VendorFulfillmentService vendorFulfillmentService;
 
-        Order order = Order.builder()
-                .user(user)
-                .status("PENDING")
-                .items(new ArrayList<>())
-                .totalAmount(BigDecimal.ZERO)
-                .build();
+        @Transactional
+        public OrderDto.Response createOrder(OrderDto.CreateRequest request) {
+                User user = null;
+                if (request.getUserId() != null) {
+                        user = userRepository.findById(request.getUserId()).orElse(null);
+                } else if (request.getUserEmail() != null) {
+                        user = userRepository.findByEmail(request.getUserEmail()).orElse(null);
+                }
 
-        BigDecimal total = BigDecimal.ZERO;
+                String txnId = "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 
-        for (OrderDto.ItemRequest itemReq : request.getItems()) {
-            Product product = productRepository.findById(itemReq.getProductId())
-                    .orElseThrow(() -> new RuntimeException("Product not found with id: " + itemReq.getProductId()));
+                Order order = Order.builder()
+                                .user(user)
+                                .shippingAddress(request.getShippingAddress())
+                                .totalAmount(request.getTotalAmount())
+                                .status("PAID")
+                                .transactionOrderId(txnId)
+                                .build();
 
-            if (product.getStockQuantity() < itemReq.getQuantity()) {
-                throw new RuntimeException("Insufficient stock for product: " + product.getName());
-            }
+                if (request.getItems() != null) {
+                        List<OrderItem> items = request.getItems().stream().map(itemDto -> OrderItem.builder()
+                                        .order(order)
+                                        .productName(itemDto.getProductName())
+                                        .quantity(itemDto.getQuantity())
+                                        .price(itemDto.getPrice())
+                                        .customSentiment(itemDto.getCustomSentiment())
+                                        .palette(itemDto.getPalette())
+                                        .printPatternUrl(itemDto.getPrintPatternUrl())
+                                        .build()).collect(Collectors.toList());
+                        order.setItems(items);
+                }
 
-            // Deduct stock
-            product.setStockQuantity(product.getStockQuantity() - itemReq.getQuantity());
-            productRepository.save(product);
+                Order savedOrder = orderRepository.save(order);
 
-            BigDecimal itemTotal = product.getPrice().multiply(BigDecimal.valueOf(itemReq.getQuantity()));
-            total = total.add(itemTotal);
+                // -----------------------------------------------------------------
+                // AUTOMATED BLIND-VENDOR FULFILLMENT DISPATCH (DAY 30 INTEGRATION)
+                // -----------------------------------------------------------------
+                String garmentType = "Custom AI Apparel";
+                String size = "M";
+                String patternUrl = "http://localhost:8000/static/patterns/pattern_generated.png";
+                List<String> palette = Arrays.asList("#FF5733", "#FFC300");
 
-            OrderItem orderItem = OrderItem.builder()
-                    .order(order)
-                    .product(product)
-                    .quantity(itemReq.getQuantity())
-                    .price(product.getPrice())
-                    .build();
+                if (savedOrder.getItems() != null && !savedOrder.getItems().isEmpty()) {
+                        OrderItem firstItem = savedOrder.getItems().get(0);
+                        if (firstItem.getProductName() != null)
+                                garmentType = firstItem.getProductName();
+                        if (firstItem.getPrintPatternUrl() != null)
+                                patternUrl = firstItem.getPrintPatternUrl();
+                        if (firstItem.getPalette() != null && !firstItem.getPalette().isEmpty())
+                                palette = firstItem.getPalette();
+                }
 
-            order.getItems().add(orderItem);
+                String customerName = (user != null && user.getEmail() != null) ? user.getEmail()
+                                : (request.getUserEmail() != null ? request.getUserEmail() : "Vistraa Customer");
+
+                VendorWebhookPayload webhookPayload = new VendorWebhookPayload(
+                                savedOrder.getTransactionOrderId(),
+                                customerName,
+                                savedOrder.getShippingAddress() != null ? savedOrder.getShippingAddress()
+                                                : "Primary Address",
+                                garmentType,
+                                size,
+                                patternUrl,
+                                palette,
+                                savedOrder.getTotalAmount());
+
+                boolean isDispatched = vendorFulfillmentService.dispatchOrderToVendor(webhookPayload);
+                if (isDispatched) {
+                        savedOrder.setStatus("DISPATCHED_TO_VENDOR");
+                        savedOrder = orderRepository.save(savedOrder);
+                }
+                // -----------------------------------------------------------------
+
+                List<OrderDto.ItemResponse> itemResponses = new ArrayList<>();
+                if (savedOrder.getItems() != null) {
+                        itemResponses = savedOrder.getItems().stream().map(item -> OrderDto.ItemResponse.builder()
+                                        .id(item.getId())
+                                        .productName(item.getProductName())
+                                        .quantity(item.getQuantity())
+                                        .price(item.getPrice())
+                                        .customSentiment(item.getCustomSentiment())
+                                        .palette(item.getPalette())
+                                        .printPatternUrl(item.getPrintPatternUrl())
+                                        .build()).collect(Collectors.toList());
+                }
+
+                return OrderDto.Response.builder()
+                                .id(savedOrder.getId())
+                                .orderId(savedOrder.getTransactionOrderId())
+                                .transactionOrderId(savedOrder.getTransactionOrderId())
+                                .userEmail(user != null ? user.getEmail() : request.getUserEmail())
+                                .status(savedOrder.getStatus())
+                                .totalAmount(savedOrder.getTotalAmount())
+                                .shippingAddress(savedOrder.getShippingAddress())
+                                .items(request.getItems())
+                                .itemResponses(itemResponses)
+                                .build();
         }
-
-        order.setTotalAmount(total);
-        Order savedOrder = orderRepository.save(order);
-        return mapToResponse(savedOrder);
-    }
-
-    public List<OrderDto.Response> getOrdersByUser(String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        return orderRepository.findByUserOrderByCreatedAtDesc(user)
-                .stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
-    }
-
-    public OrderDto.Response getOrderById(Long id, String userEmail) {
-        Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order not found with id: " + id));
-
-        if (!order.getUser().getEmail().equals(userEmail)) {
-            throw new RuntimeException("Unauthorized access to order");
-        }
-
-        return mapToResponse(order);
-    }
-
-    private OrderDto.Response mapToResponse(Order order) {
-        List<OrderDto.ItemResponse> itemResponses = order.getItems().stream()
-                .map(item -> OrderDto.ItemResponse.builder()
-                        .id(item.getId())
-                        .productId(item.getProduct().getId())
-                        .productName(item.getProduct().getName())
-                        .quantity(item.getQuantity())
-                        .price(item.getPrice())
-                        .build())
-                .collect(Collectors.toList());
-
-        return OrderDto.Response.builder()
-                .id(order.getId())
-                .userEmail(order.getUser().getEmail())
-                .totalAmount(order.getTotalAmount())
-                .status(order.getStatus())
-                .createdAt(order.getCreatedAt())
-                .items(itemResponses)
-                .build();
-    }
 }
