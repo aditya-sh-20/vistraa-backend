@@ -78,7 +78,7 @@ public class OrderService {
                         if (firstItem.getPrintPatternUrl() != null)
                                 patternUrl = firstItem.getPrintPatternUrl();
                         if (firstItem.getPalette() != null && !firstItem.getPalette().isEmpty())
-                                palette = firstItem.getPalette();
+        palette = Arrays.asList(firstItem.getPalette().split(","));
                 }
 
                 String customerName = (user != null && user.getEmail() != null) ? user.getEmail()
